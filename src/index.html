@@ -1,22 +1,1490 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <link rel="stylesheet" href="styles.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus App</title>
-        <script type="module" src="/main.js" defer></script>
-    </head>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能借款利息计算系统（含超额还款处理）</title>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --info: #4895ef;
+            --warning: #f72585;
+            --danger: #e63946;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --header-bg: linear-gradient(135deg, #3a0ca3, #4361ee);
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            --overpayment: #6a0dad;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: var(--header-bg);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        
+        header::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(30deg);
+            z-index: -1;
+        }
+        
+        .header-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .header-text {
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 1.15rem;
+            opacity: 0.92;
+            max-width: 700px;
+            line-height: 1.7;
+            margin-top: 15px;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px 25px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .stat-label {
+            font-size: 0.95rem;
+            opacity: 0.85;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(220, 230, 245, 0.6);
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-header {
+            background: linear-gradient(90deg, #f8fafc, #f1f7ff);
+            padding: 20px 30px;
+            border-bottom: 1px solid #eaeff5;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-body {
+            padding: 30px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .form-group {
+            margin-bottom: 22px;
+            position: relative;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #3a506b;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        label i {
+            color: var(--primary);
+            font-size: 1.1rem;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 15px 20px;
+            border: 1px solid #d1d8e0;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.2);
+            background: white;
+        }
+        
+        button {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(67, 97, 238, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d, #495057);
+        }
+        
+        .btn-secondary:hover {
+            box-shadow: 0 8px 20px rgba(108, 117, 125, 0.4);
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, #20c997, #099268);
+        }
+        
+        .btn-download:hover {
+            box-shadow: 0 8px 20px rgba(32, 201, 151, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #e63946, #d00000);
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 8px 20px rgba(230, 57, 70, 0.4);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: flex-end;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 25px 0;
+            font-size: 1rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        th {
+            background: linear-gradient(to bottom, #f1f5f9, #e2e8f0);
+            padding: 18px 20px;
+            text-align: left;
+            font-weight: 700;
+            color: #334155;
+            border-bottom: 2px solid #d1dce8;
+        }
+        
+        td {
+            padding: 16px 20px;
+            border-bottom: 1px solid #edf2f7;
+            color: #4a5568;
+        }
+        
+        tr:nth-child(even) {
+            background-color: rgba(241, 245, 249, 0.4);
+        }
+        
+        tr:hover td {
+            background-color: rgba(235, 245, 255, 0.6);
+        }
+        
+        .status-active {
+            background: linear-gradient(to right, #dcfce7, #bbf7d0);
+            color: #166534;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        
+        .status-closed {
+            background: linear-gradient(to right, #fee2e2, #fecaca);
+            color: #b91c1c;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        
+        .interest-col {
+            color: #b45309;
+            font-weight: 600;
+            background: rgba(254, 243, 199, 0.3);
+        }
+        
+        .principal-col {
+            color: #065f46;
+            font-weight: 600;
+            background: rgba(209, 250, 229, 0.3);
+        }
+        
+        .accrued-interest {
+            color: #c2410c;
+            font-weight: 600;
+            background: rgba(255, 237, 213, 0.4);
+        }
+        
+        .overpayment-col {
+            color: var(--overpayment);
+            font-weight: 600;
+            background: rgba(106, 13, 173, 0.1);
+        }
+        
+        .summary-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 25px;
+            margin-top: 25px;
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 25px 20px;
+            background: linear-gradient(135deg, #e0f2fe, #dbeafe);
+            border-radius: 16px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s;
+        }
+        
+        .summary-item:hover {
+            transform: translateY(-8px);
+        }
+        
+        .summary-icon {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+        
+        .summary-value {
+            font-size: 2.4rem;
+            font-weight: 800;
+            color: #1e40af;
+            margin: 10px 0;
+            text-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-label {
+            color: #4b5563;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+        
+        .instructions {
+            background: linear-gradient(to right, #fffbeb, #fef3c7);
+            border-left: 5px solid #f59e0b;
+            padding: 25px;
+            border-radius: 0 16px 16px 0;
+            margin: 30px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .instructions h3 {
+            margin-bottom: 20px;
+            color: #b45309;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .instructions ul {
+            padding-left: 25px;
+        }
+        
+        .instructions li {
+            margin-bottom: 12px;
+            line-height: 1.7;
+            position: relative;
+            font-size: 1.05rem;
+        }
+        
+        .instructions li:before {
+            content: "•";
+            color: #f59e0b;
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+            font-size: 1.4rem;
+        }
+        
+        .feature-highlight {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.15);
+            color: #b45309;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .rate-input {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .rate-input input {
+            width: 150px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 14px 28px;
+            border-radius: 12px;
+            background: #e2e8f0;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 1.1rem;
+        }
+        
+        .tab.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-btn {
+            flex: 1;
+            min-width: 200px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .quick-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .quick-btn i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        .quick-btn h3 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+        
+        .quick-btn p {
+            color: #6c757d;
+            font-size: 0.95rem;
+        }
+        
+        @media (max-width: 992px) {
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .header-content {
+                text-align: center;
+            }
+            
+            h1 {
+                justify-content: center;
+            }
+            
+            .header-stats {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .card-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .summary-card {
+                grid-template-columns: 1fr;
+            }
+            
+            th, td {
+                padding: 14px 10px;
+                font-size: 0.95rem;
+            }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 18px 28px;
+            border-radius: 12px;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            transform: translateX(120%);
+            transition: transform 0.4s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            max-width: 400px;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.error {
+            background: var(--danger);
+        }
+        
+        .notification.success {
+            background: #20c997;
+        }
+        
+        .notification i {
+            font-size: 1.8rem;
+        }
+        
+        .floating-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 10px 25px rgba(67, 97, 238, 0.4);
+            cursor: pointer;
+            z-index: 100;
+            transition: all 0.3s;
+        }
+        
+        .floating-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 15px 30px rgba(67, 97, 238, 0.5);
+        }
+        
+        .overpayment-info {
+            background: linear-gradient(135deg, #f0e6ff, #e6d6ff);
+            border-left: 5px solid var(--overpayment);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .overpayment-info h3 {
+            color: var(--overpayment);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .overpayment-info p {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .overpayment-highlight {
+            background: rgba(106, 13, 173, 0.15);
+            color: var(--overpayment);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="header-text">
+                    <h1>
+                        <i class="fas fa-calculator"></i>
+                        <span>智能借款利息计算系统</span>
+                    </h1>
+                    <p class="subtitle">专业级借款管理工具，支持自动计算利息（先息后本），智能分类还款，月利率可调，具备自我校正功能。<span class="feature-highlight">新增超额还款处理</span>功能，解决还款结清后有余款的情况。</p>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="headerTotalLoans">0</div>
+                        <div class="stat-label">总借款笔数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="headerActiveLoans">0</div>
+                        <div class="stat-label">未结清借款</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="headerTotalAmount">0</div>
+                        <div class="stat-label">总借款金额</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <div class="overpayment-info">
+            <h3><i class="fas fa-info-circle"></i> 超额还款处理说明</h3>
+            <p>当还款金额超过应还总额（剩余本金 + 剩余利息）时，系统会自动处理：</p>
+            <p>1. 先支付所有<span class="overpayment-highlight">剩余利息</span></p>
+            <p>2. 再偿还所有<span class="overpayment-highlight">剩余本金</span></p>
+            <p>3. 最后将<span class="overpayment-highlight">超额部分</span>记录为"超额还款"</p>
+            <p>超额还款不会用于抵扣其他借款，仅作为记录，可在还款记录中查看。</p>
+        </div>
+        
+        <div class="quick-actions">
+            <div class="quick-btn" onclick="scrollToSection('loan-section')">
+                <i class="fas fa-hand-holding-usd"></i>
+                <h3>添加借款</h3>
+                <p>快速记录新借款信息</p>
+            </div>
+            <div class="quick-btn" onclick="scrollToSection('repayment-section')">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <h3>添加还款</h3>
+                <p>记录还款并自动计算利息</p>
+            </div>
+            <div class="quick-btn" onclick="exportToExcel()">
+                <i class="fas fa-file-excel"></i>
+                <h3>导出数据</h3>
+                <p>下载Excel格式报表</p>
+            </div>
+            <div class="quick-btn" onclick="showHelp()">
+                <i class="fas fa-question-circle"></i>
+                <h3>使用帮助</h3>
+                <p>查看系统使用指南</p>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3><i class="fas fa-info-circle"></i> 系统使用说明</h3>
+            <ul>
+                <li><strong>添加借款</strong>：填写借款单位、单号、金额和日期后点击"添加借款"</li>
+                <li><strong>添加还款</strong>：选择借款单号，填写还款金额和日期后点击"添加还款"</li>
+                <li><strong>智能利息计算</strong>：系统自动按"先息后本"原则计算利息和本金部分</li>
+                <li><span class="feature-highlight">超额还款处理</span>：当还款金额超过应还总额时，系统自动记录超额部分</li>
+                <li><span class="feature-highlight">剩余利息追踪</span>：未支付利息自动累积至下次还款</li>
+                <li><strong>月利率设置</strong>：可在系统设置中修改月利率（默认1.3%）</li>
+                <li><strong>数据导出</strong>：点击"导出Excel"按钮下载完整数据报表</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <span><i class="fas fa-cog"></i> 系统设置</span>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="interestRate"><i class="fas fa-percentage"></i> 月利率设置 (%)</label>
+                    <div class="rate-input">
+                        <input type="number" id="interestRate" step="0.1" min="0" max="20" value="1.3">
+                        <button onclick="updateInterestRate()"><i class="fas fa-sync-alt"></i> 更新利率</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card" id="loan-section">
+            <div class="card-header">
+                <span><i class="fas fa-hand-holding-usd"></i> 借款管理</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="borrower"><i class="fas fa-building"></i> 借款单位</label>
+                        <input type="text" id="borrower" placeholder="输入借款单位名称">
+                    </div>
+                    <div class="form-group">
+                        <label for="loanId"><i class="fas fa-barcode"></i> 借款单号</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="loanId" placeholder="输入唯一借款单号">
+                            <button style="padding: 10px 15px;" onclick="generateLoanId()"><i class="fas fa-sync"></i></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="loanAmount"><i class="fas fa-money-bill-wave"></i> 借款金额 (元)</label>
+                        <input type="number" id="loanAmount" placeholder="输入借款金额">
+                    </div>
+                    <div class="form-group">
+                        <label for="loanDate"><i class="fas fa-calendar-day"></i> 借款日期</label>
+                        <input type="date" id="loanDate">
+                    </div>
+                </div>
+                <button onclick="addLoan()">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>添加借款</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="card" id="repayment-section">
+            <div class="card-header">
+                <span><i class="fas fa-file-invoice-dollar"></i> 还款管理</span>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="repaymentLoanId"><i class="fas fa-list"></i> 选择借款单号</label>
+                        <select id="repaymentLoanId">
+                            <option value="">-- 选择借款单号 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="repaymentAmount"><i class="fas fa-coins"></i> 还款金额 (元)</label>
+                        <input type="number" id="repaymentAmount" placeholder="输入还款金额">
+                    </div>
+                    <div class="form-group">
+                        <label for="repaymentDate"><i class="fas fa-calendar-check"></i> 还款日期</label>
+                        <input type="date" id="repaymentDate">
+                    </div>
+                </div>
+                <div id="repayment-details" style="margin-top: 20px; display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="background: #f0f7ff; padding: 15px; border-radius: 10px;">
+                            <div style="font-weight: 600; color: #3a506b;">剩余本金</div>
+                            <div id="remaining-principal" style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">0.00</div>
+                        </div>
+                        <div style="background: #fff8e6; padding: 15px; border-radius: 10px;">
+                            <div style="font-weight: 600; color: #3a506b;">剩余利息</div>
+                            <div id="remaining-interest" style="font-size: 1.5rem; font-weight: 700; color: #b45309;">0.00</div>
+                        </div>
+                        <div style="background: #f0e6ff; padding: 15px; border-radius: 10px;">
+                            <div style="font-weight: 600; color: #3a506b;">应还总额</div>
+                            <div id="total-due" style="font-size: 1.5rem; font-weight: 700; color: #6a0dad;">0.00</div>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="addRepayment()" style="margin-top: 20px;">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>添加还款</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('loan')">借款记录</div>
+            <div class="tab" onclick="switchTab('repayment')">还款记录</div>
+            <div class="tab" onclick="switchTab('summary')">统计概览</div>
+        </div>
+        
+        <div class="tab-content active" id="loan-tab">
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-file-contract"></i> 借款记录</span>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="loanSearch" placeholder="搜索借款单位或单号" style="padding: 10px 15px; width: 250px;">
+                        <button onclick="filterLoans()"><i class="fas fa-search"></i> 搜索</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table id="loanTable">
+                        <thead>
+                            <tr>
+                                <th>借款单位</th>
+                                <th>单号</th>
+                                <th>借款日期</th>
+                                <th>借款金额</th>
+                                <th>月利率</th>
+                                <th>剩余本金</th>
+                                <th>剩余利息</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loanTableBody">
+                            <!-- 借款记录将通过JS动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="repayment-tab">
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-receipt"></i> 还款记录</span>
+                </div>
+                <div class="card-body">
+                    <table id="repaymentTable">
+                        <thead>
+                            <tr>
+                                <th>借款单号</th>
+                                <th>借款单位</th>
+                                <th>还款日期</th>
+                                <th>还款金额</th>
+                                <th>利息部分</th>
+                                <th>本金部分</th>
+                                <th>剩余利息</th>
+                                <th>超额还款</th>
+                                <th>还款后本金</th>
+                            </tr>
+                        </thead>
+                        <tbody id="repaymentTableBody">
+                            <!-- 还款记录将通过JS动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="summary-tab">
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-chart-pie"></i> 统计概览</span>
+                </div>
+                <div class="card-body">
+                    <div class="summary-card">
+                        <div class="summary-item">
+                            <div class="summary-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                            <div class="summary-value" id="totalLoanAmount">0</div>
+                            <div class="summary-label">总借款金额</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-icon"><i class="fas fa-money-bill-wave"></i></div>
+                            <div class="summary-value" id="totalRemaining">0</div>
+                            <div class="summary-label">总剩余本金</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-icon"><i class="fas fa-coins"></i></div>
+                            <div class="summary-value" id="totalAccruedInterest">0</div>
+                            <div class="summary-label">总剩余利息</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-icon"><i class="fas fa-gift"></i></div>
+                            <div class="summary-value" id="totalOverpayment">0</div>
+                            <div class="summary-label">总超额还款</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 40px;">
+                        <h3 style="margin-bottom: 20px; color: #3a506b; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-history"></i> 最近还款记录
+                        </h3>
+                        <table id="recentRepayments">
+                            <thead>
+                                <tr>
+                                    <th>借款单号</th>
+                                    <th>借款单位</th>
+                                    <th>还款日期</th>
+                                    <th>还款金额</th>
+                                    <th>超额部分</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentRepaymentsBody">
+                                <!-- 最近还款记录将通过JS动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <button class="btn-danger" onclick="clearAllData()">
+                <i class="fas fa-trash-alt"></i>
+                <span>清空所有数据</span>
+            </button>
+            <button class="btn-download" onclick="exportToExcel()">
+                <i class="fas fa-file-excel"></i>
+                <span>导出Excel表格</span>
+            </button>
+        </div>
+    </div>
 
-    <body>
-        <main class="container">
-            <h1>Welcome to PakePlus</h1>
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle"></i>
+        <span>操作成功！</span>
+    </div>
 
-            <form class="row" id="greet-form">
-                <input id="greet-input" placeholder="Enter a name..." />
-                <button type="submit">Greet</button>
-            </form>
-            <p id="greet-msg"></p>
-        </main>
-    </body>
+    <div class="floating-btn" onclick="scrollToTop()">
+        <i class="fas fa-arrow-up"></i>
+    </div>
+
+    <script>
+        // 初始化数据
+        let loans = JSON.parse(localStorage.getItem('loans')) || [];
+        let repayments = JSON.parse(localStorage.getItem('repayments')) || [];
+        let interestRate = localStorage.getItem('interestRate') || 1.3;
+        let lastLoanId = localStorage.getItem('lastLoanId') || '';
+        
+        // 显示通知
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            notification.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i><span>${message}</span>`;
+            notification.className = `notification show ${type}`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 切换标签页
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            if (tab === 'loan') {
+                document.getElementById('loan-tab').classList.add('active');
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else if (tab === 'repayment') {
+                document.getElementById('repayment-tab').classList.add('active');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            } else {
+                document.getElementById('summary-tab').classList.add('active');
+                document.querySelectorAll('.tab')[2].classList.add('active');
+            }
+        }
+        
+        // 滚动到指定区域
+        function scrollToSection(sectionId) {
+            document.getElementById(sectionId).scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+        
+        // 滚动到顶部
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+        
+        // 显示帮助
+        function showHelp() {
+            alert("使用帮助：\n\n1. 添加借款：填写借款信息后点击添加借款\n2. 添加还款：选择借款单号，填写还款信息\n3. 系统自动计算利息并分类\n4. 当还款金额超过应还总额时，超额部分会单独记录\n5. 使用顶部标签页切换不同视图\n6. 导出数据：点击导出Excel按钮下载完整数据");
+        }
+        
+        // 生成借款单号
+        function generateLoanId() {
+            const prefix = 'LOAN-';
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const date = new Date();
+            const dateStr = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+            const newId = `${prefix}${dateStr}-${randomNum}`;
+            document.getElementById('loanId').value = newId;
+        }
+        
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('interestRate').value = interestRate;
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('loanDate').value = today;
+            document.getElementById('repaymentDate').value = today;
+            
+            // 如果上次使用过借款单号，则预填充
+            if (lastLoanId) {
+                document.getElementById('loanId').value = lastLoanId;
+            }
+            
+            updateLoanDropdown();
+            renderLoanTable();
+            renderRepaymentTable();
+            updateSummary();
+            updateHeaderStats();
+            
+            // 监听借款单号变化
+            document.getElementById('repaymentLoanId').addEventListener('change', function() {
+                updateRepaymentDetails();
+            });
+        });
+        
+        // 更新还款详情
+        function updateRepaymentDetails() {
+            const loanId = document.getElementById('repaymentLoanId').value;
+            const detailsContainer = document.getElementById('repayment-details');
+            
+            if (!loanId) {
+                detailsContainer.style.display = 'none';
+                return;
+            }
+            
+            const loan = loans.find(loan => loan.loanId === loanId);
+            if (!loan) {
+                detailsContainer.style.display = 'none';
+                return;
+            }
+            
+            detailsContainer.style.display = 'block';
+            document.getElementById('remaining-principal').textContent = loan.remaining.toFixed(2);
+            document.getElementById('remaining-interest').textContent = loan.accruedInterest.toFixed(2);
+            
+            const totalDue = loan.remaining + loan.accruedInterest;
+            document.getElementById('total-due').textContent = totalDue.toFixed(2);
+        }
+        
+        // 更新利率
+        function updateInterestRate() {
+            const newRate = parseFloat(document.getElementById('interestRate').value);
+            if (isNaN(newRate) || newRate <= 0) {
+                showNotification("请输入有效的利率值", "error");
+                return;
+            }
+            
+            interestRate = newRate;
+            localStorage.setItem('interestRate', interestRate);
+            showNotification(`利率已更新为 ${interestRate}%`);
+            renderLoanTable();
+        }
+        
+        // 添加借款
+        function addLoan() {
+            const borrower = document.getElementById('borrower').value.trim();
+            const loanId = document.getElementById('loanId').value.trim();
+            const amount = parseFloat(document.getElementById('loanAmount').value);
+            const date = document.getElementById('loanDate').value;
+            
+            if (!borrower || !loanId || isNaN(amount) || amount <= 0 || !date) {
+                showNotification("请填写完整的借款信息", "error");
+                return;
+            }
+            
+            // 检查单号是否重复
+            if (loans.some(loan => loan.loanId === loanId)) {
+                showNotification("该借款单号已存在", "error");
+                return;
+            }
+            
+            const newLoan = {
+                id: Date.now(),
+                borrower,
+                loanId,
+                amount,
+                date,
+                remaining: amount,
+                accruedInterest: 0, // 剩余利息
+                overpayment: 0,     // 超额还款
+                status: 'active'
+            };
+            
+            loans.push(newLoan);
+            saveData();
+            updateLoanDropdown();
+            renderLoanTable();
+            updateSummary();
+            updateHeaderStats();
+            
+            // 保存当前借款单号供下次使用
+            lastLoanId = loanId;
+            localStorage.setItem('lastLoanId', lastLoanId);
+            
+            // 只清空借款单位和借款金额
+            document.getElementById('borrower').value = '';
+            document.getElementById('loanAmount').value = '';
+            
+            showNotification("借款添加成功！");
+        }
+        
+        // 添加还款
+        function addRepayment() {
+            const loanId = document.getElementById('repaymentLoanId').value;
+            const amount = parseFloat(document.getElementById('repaymentAmount').value);
+            const date = document.getElementById('repaymentDate').value;
+            
+            if (!loanId || isNaN(amount) || amount <= 0 || !date) {
+                showNotification("请填写完整的还款信息", "error");
+                return;
+            }
+            
+            const loan = loans.find(loan => loan.loanId === loanId);
+            if (!loan) {
+                showNotification("未找到对应的借款记录", "error");
+                return;
+            }
+            
+            if (loan.status === 'closed') {
+                showNotification("该借款已结清，无法添加还款", "error");
+                return;
+            }
+            
+            // 计算利息部分
+            const lastRepayment = [...repayments]
+                .filter(r => r.loanId === loanId)
+                .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+            
+            const lastDate = lastRepayment ? new Date(lastRepayment.date) : new Date(loan.date);
+            const currentDate = new Date(date);
+            
+            // 计算天数差
+            const timeDiff = Math.abs(currentDate - lastDate);
+            const days = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+            
+            // 计算当期利息 (月利率/30 * 天数)
+            const currentInterest = loan.remaining * (interestRate / 100) * (days / 30);
+            
+            // 先计算应还的总利息（包括之前的未付利息）
+            const totalInterestDue = loan.accruedInterest + currentInterest;
+            
+            // 计算总应还金额（本金+利息）
+            const totalDue = loan.remaining + totalInterestDue;
+            
+            let interestPart, principalPart, overpayment = 0;
+            
+            // 处理超额还款的情况
+            if (amount > totalDue) {
+                // 还款金额超过应还总额
+                interestPart = totalInterestDue;
+                principalPart = loan.remaining;
+                overpayment = amount - totalDue;
+                
+                // 更新借款状态
+                loan.remaining = 0;
+                loan.accruedInterest = 0;
+                loan.overpayment += overpayment;
+                loan.status = 'closed';
+                
+                showNotification(`借款已结清，超额还款金额：${overpayment.toFixed(2)}元`);
+            } else {
+                // 正常还款
+                // 计算利息部分（优先还之前的未付利息）
+                interestPart = Math.min(amount, totalInterestDue);
+                
+                // 计算本金部分
+                principalPart = Math.min(amount - interestPart, loan.remaining);
+                
+                // 更新剩余本金
+                loan.remaining -= principalPart;
+                
+                // 更新剩余利息
+                loan.accruedInterest = totalInterestDue - interestPart;
+                
+                // 更新借款状态
+                loan.status = (loan.remaining <= 0 && loan.accruedInterest <= 0) ? 'closed' : 'active';
+            }
+            
+            // 创建还款记录
+            const newRepayment = {
+                id: Date.now(),
+                loanId,
+                date,
+                amount,
+                interest: interestPart,
+                principal: principalPart,
+                accruedInterest: loan.accruedInterest,
+                overpayment: overpayment,
+                remaining: loan.remaining
+            };
+            
+            repayments.push(newRepayment);
+            saveData();
+            renderLoanTable();
+            renderRepaymentTable();
+            updateSummary();
+            updateLoanDropdown();
+            updateHeaderStats();
+            
+            // 清空还款金额，保留其他信息
+            document.getElementById('repaymentAmount').value = '';
+            
+            // 更新还款详情
+            updateRepaymentDetails();
+            
+            // 切换到还款记录标签页
+            switchTab('repayment');
+            
+            showNotification("还款记录添加成功！");
+        }
+        
+        // 更新借款下拉框
+        function updateLoanDropdown() {
+            const select = document.getElementById('repaymentLoanId');
+            select.innerHTML = '<option value="">-- 选择借款单号 --</option>';
+            
+            loans.filter(loan => loan.status === 'active').forEach(loan => {
+                const option = document.createElement('option');
+                option.value = loan.loanId;
+                option.textContent = `${loan.loanId} - ${loan.borrower} (本金: ${loan.remaining.toFixed(2)}元, 利息: ${loan.accruedInterest.toFixed(2)}元)`;
+                select.appendChild(option);
+            });
+        }
+        
+        // 渲染借款表格
+        function renderLoanTable() {
+            const tbody = document.getElementById('loanTableBody');
+            tbody.innerHTML = '';
+            
+            const searchTerm = document.getElementById('loanSearch').value.toLowerCase();
+            let filteredLoans = loans;
+            
+            if (searchTerm) {
+                filteredLoans = loans.filter(loan => 
+                    loan.borrower.toLowerCase().includes(searchTerm) || 
+                    loan.loanId.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            filteredLoans.forEach(loan => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${loan.borrower}</td>
+                    <td>${loan.loanId}</td>
+                    <td>${formatDate(loan.date)}</td>
+                    <td>${loan.amount.toFixed(2)}</td>
+                    <td>${interestRate}%</td>
+                    <td>${loan.remaining.toFixed(2)}</td>
+                    <td class="accrued-interest">${loan.accruedInterest.toFixed(2)}</td>
+                    <td>
+                        <span class="${loan.status === 'active' ? 'status-active' : 'status-closed'}">
+                            ${loan.status === 'active' ? '未结清' : '已结清'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn-repay" onclick="prepareRepayment('${loan.loanId}')" style="padding: 8px 15px;">
+                            <i class="fas fa-file-invoice-dollar"></i> 还款
+                        </button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // 准备还款（从借款记录中点击）
+        function prepareRepayment(loanId) {
+            document.getElementById('repaymentLoanId').value = loanId;
+            scrollToSection('repayment-section');
+            updateRepaymentDetails();
+        }
+        
+        // 过滤借款记录
+        function filterLoans() {
+            renderLoanTable();
+        }
+        
+        // 渲染还款表格
+        function renderRepaymentTable() {
+            const tbody = document.getElementById('repaymentTableBody');
+            tbody.innerHTML = '';
+            
+            // 按日期降序排序
+            const sortedRepayments = [...repayments].sort((a, b) => 
+                new Date(b.date) - new Date(a.date));
+            
+            sortedRepayments.forEach(repayment => {
+                const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                const borrower = loan ? loan.borrower : '未知';
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${repayment.loanId}</td>
+                    <td>${borrower}</td>
+                    <td>${formatDate(repayment.date)}</td>
+                    <td>${repayment.amount.toFixed(2)}</td>
+                    <td class="interest-col">${repayment.interest.toFixed(2)}</td>
+                    <td class="principal-col">${repayment.principal.toFixed(2)}</td>
+                    <td class="accrued-interest">${repayment.accruedInterest.toFixed(2)}</td>
+                    <td class="overpayment-col">${repayment.overpayment > 0 ? repayment.overpayment.toFixed(2) : '-'}</td>
+                    <td>${repayment.remaining.toFixed(2)}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            // 更新最近还款记录
+            updateRecentRepayments();
+        }
+        
+        // 更新最近还款记录
+        function updateRecentRepayments() {
+            const tbody = document.getElementById('recentRepaymentsBody');
+            tbody.innerHTML = '';
+            
+            // 获取最近5条还款记录
+            const recentRepayments = [...repayments]
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 5);
+            
+            recentRepayments.forEach(repayment => {
+                const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                const borrower = loan ? loan.borrower : '未知';
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${repayment.loanId}</td>
+                    <td>${borrower}</td>
+                    <td>${formatDate(repayment.date)}</td>
+                    <td>${repayment.amount.toFixed(2)}</td>
+                    <td class="overpayment-col">${repayment.overpayment > 0 ? repayment.overpayment.toFixed(2) : '-'}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // 更新统计信息
+        function updateSummary() {
+            const totalLoanAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
+            const totalRemaining = loans.reduce((sum, loan) => sum + loan.remaining, 0);
+            const totalAccruedInterest = loans.reduce((sum, loan) => sum + loan.accruedInterest, 0);
+            const totalInterest = repayments.reduce((sum, repayment) => sum + repayment.interest, 0);
+            const totalOverpayment = loans.reduce((sum, loan) => sum + loan.overpayment, 0);
+            
+            document.getElementById('totalLoanAmount').textContent = totalLoanAmount.toFixed(2);
+            document.getElementById('totalRemaining').textContent = totalRemaining.toFixed(2);
+            document.getElementById('totalAccruedInterest').textContent = totalAccruedInterest.toFixed(2);
+            document.getElementById('totalOverpayment').textContent = totalOverpayment.toFixed(2);
+        }
+        
+        // 更新头部统计信息
+        function updateHeaderStats() {
+            const totalLoans = loans.length;
+            const activeLoans = loans.filter(loan => loan.status === 'active').length;
+            const totalAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
+            
+            document.getElementById('headerTotalLoans').textContent = totalLoans;
+            document.getElementById('headerActiveLoans').textContent = activeLoans;
+            document.getElementById('headerTotalAmount').textContent = totalAmount.toFixed(2);
+        }
+        
+        // 导出Excel
+        function exportToExcel() {
+            if (loans.length === 0 && repayments.length === 0) {
+                showNotification("没有数据可导出", "error");
+                return;
+            }
+            
+            // 创建工作簿
+            const wb = XLSX.utils.book_new();
+            
+            // 添加借款记录表
+            const loanData = [
+                ['借款单位', '单号', '借款日期', '借款金额', '月利率', '剩余本金', '剩余利息', '超额还款', '状态']
+            ];
+            
+            loans.forEach(loan => {
+                loanData.push([
+                    loan.borrower,
+                    loan.loanId,
+                    formatDate(loan.date),
+                    loan.amount,
+                    `${interestRate}%`,
+                    loan.remaining,
+                    loan.accruedInterest,
+                    loan.overpayment,
+                    loan.status === 'active' ? '未结清' : '已结清'
+                ]);
+            });
+            
+            const loanWs = XLSX.utils.aoa_to_sheet(loanData);
+            XLSX.utils.book_append_sheet(wb, loanWs, "借款记录");
+            
+            // 添加还款记录表
+            const repaymentData = [
+                ['借款单号', '借款单位', '还款日期', '还款金额', '利息部分', '本金部分', '剩余利息', '超额还款', '还款后本金']
+            ];
+            
+            repayments.forEach(repayment => {
+                const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                const borrower = loan ? loan.borrower : '未知';
+                
+                repaymentData.push([
+                    repayment.loanId,
+                    borrower,
+                    formatDate(repayment.date),
+                    repayment.amount,
+                    repayment.interest,
+                    repayment.principal,
+                    repayment.accruedInterest,
+                    repayment.overpayment,
+                    repayment.remaining
+                ]);
+            });
+            
+            const repaymentWs = XLSX.utils.aoa_to_sheet(repaymentData);
+            XLSX.utils.book_append_sheet(wb, repaymentWs, "还款记录");
+            
+            // 导出Excel文件
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            XLSX.writeFile(wb, `借款管理系统_${dateStr}.xlsx`);
+            
+            showNotification("Excel导出成功！");
+        }
+        
+        // 清空所有数据
+        function clearAllData() {
+            if (confirm("确定要清空所有数据吗？此操作不可恢复！")) {
+                loans = [];
+                repayments = [];
+                saveData();
+                updateLoanDropdown();
+                renderLoanTable();
+                renderRepaymentTable();
+                updateSummary();
+                updateHeaderStats();
+                document.getElementById('repayment-details').style.display = 'none';
+                showNotification("所有数据已清空");
+            }
+        }
+        
+        // 保存数据到localStorage
+        function saveData() {
+            localStorage.setItem('loans', JSON.stringify(loans));
+            localStorage.setItem('repayments', JSON.stringify(repayments));
+        }
+        
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
 </html>
