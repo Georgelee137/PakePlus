@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能借款利息计算系统（含超额还款处理）</title>
-    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <title>借款利息计算系统 - 专业优化版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -17,9 +17,16 @@
             --light: #f8f9fa;
             --dark: #212529;
             --card-bg: rgba(255, 255, 255, 0.95);
-            --header-bg: linear-gradient(135deg, #3a0ca3, #4361ee);
+            --header-bg: linear-gradient(135deg, #2c3e50, #4a6582);
             --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             --overpayment: #6a0dad;
+            --principal: #2e7d32;
+            --interest: #d84315;
+            --accrued-interest: #c2410c;
+            --remaining-principal: #1a73e8;
+            --calculation: #1a73e8;
+            --month-interest: #5e35b1;
+            --day-interest: #0288d1;
         }
         
         * {
@@ -30,7 +37,7 @@
         }
         
         body {
-            background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #e3eaf2 100%);
             min-height: 100vh;
             padding: 20px;
             color: #333;
@@ -148,6 +155,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: pointer;
         }
         
         .card-body {
@@ -248,6 +256,14 @@
             box-shadow: 0 8px 20px rgba(230, 57, 70, 0.4);
         }
         
+        .btn-calculation {
+            background: linear-gradient(135deg, var(--calculation), #0d47a1);
+        }
+        
+        .btn-calculation:hover {
+            box-shadow: 0 8px 20px rgba(26, 115, 232, 0.4);
+        }
+        
         .action-buttons {
             display: flex;
             gap: 20px;
@@ -260,7 +276,6 @@
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
-            margin: 25px 0;
             font-size: 1rem;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
             border-radius: 12px;
@@ -274,6 +289,26 @@
             font-weight: 700;
             color: #334155;
             border-bottom: 2px solid #d1dce8;
+            position: relative;
+        }
+        
+        th.sortable {
+            cursor: pointer;
+        }
+        
+        th.sortable::after {
+            content: "▼";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            opacity: 0.6;
+            transition: all 0.3s;
+        }
+        
+        th.sortable:hover::after {
+            opacity: 1;
         }
         
         td {
@@ -310,28 +345,44 @@
             display: inline-block;
         }
         
-        .interest-col {
-            color: #b45309;
-            font-weight: 600;
-            background: rgba(254, 243, 199, 0.3);
-        }
-        
         .principal-col {
-            color: #065f46;
-            font-weight: 600;
-            background: rgba(209, 250, 229, 0.3);
+            color: var(--principal);
+            font-weight: 700;
         }
         
-        .accrued-interest {
-            color: #c2410c;
-            font-weight: 600;
-            background: rgba(255, 237, 213, 0.4);
+        .interest-col {
+            color: var(--interest);
+            font-weight: 700;
+        }
+        
+        .current-interest-col {
+            color: var(--current-interest);
+            font-weight: 700;
+        }
+        
+        .accrued-interest-col {
+            color: var(--accrued-interest);
+            font-weight: 700;
+        }
+        
+        .remaining-principal-col {
+            color: var(--remaining-principal);
+            font-weight: 700;
         }
         
         .overpayment-col {
             color: var(--overpayment);
-            font-weight: 600;
-            background: rgba(106, 13, 173, 0.1);
+            font-weight: 700;
+        }
+        
+        .month-interest-col {
+            color: var(--month-interest);
+            font-weight: 700;
+        }
+        
+        .day-interest-col {
+            color: var(--day-interest);
+            font-weight: 700;
         }
         
         .summary-card {
@@ -622,27 +673,399 @@
             border-radius: 12px;
             margin: 20px 0;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: none;
         }
         
-        .overpayment-info h3 {
-            color: var(--overpayment);
+        .repayment-order {
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border-left: 5px solid var(--principal);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: none;
+        }
+        
+        .interest-method {
+            background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+            border-left: 5px solid #7b1fa2;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: none;
+        }
+        
+        .interest-calculator {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border-left: 5px solid var(--current-interest);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .interest-calculator h3 {
+            color: var(--current-interest);
             margin-bottom: 15px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
         
-        .overpayment-info p {
-            margin-bottom: 10px;
-            line-height: 1.6;
+        .interest-calculator .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            font-size: 1.1rem;
         }
         
-        .overpayment-highlight {
-            background: rgba(106, 13, 173, 0.15);
-            color: var(--overpayment);
-            padding: 2px 8px;
-            border-radius: 4px;
+        .interest-calculator .value {
+            font-weight: 700;
+            color: var(--current-interest);
+            font-size: 1.3rem;
+        }
+        
+        .calculation-details {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border-left: 5px solid var(--calculation);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: none;
+        }
+        
+        .calculation-details h4 {
+            color: var(--calculation);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .calculation-details ul {
+            padding-left: 25px;
+            list-style-type: none;
+        }
+        
+        .calculation-details li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .calculation-details li:before {
+            content: "•";
+            color: var(--calculation);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.4rem;
+        }
+        
+        .calculation-value {
+            font-weight: 700;
+            color: var(--calculation);
+        }
+        
+        .month-interest-value {
+            color: var(--month-interest);
+            font-weight: 700;
+        }
+        
+        .day-interest-value {
+            color: var(--day-interest);
+            font-weight: 700;
+        }
+        
+        .expand-btn {
+            background: none;
+            border: none;
+            color: var(--calculation);
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 8px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: none;
+        }
+        
+        .expand-btn:hover {
+            background: rgba(26, 115, 232, 0.1);
+            transform: none;
+        }
+        
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .collapsible-content.show {
+            max-height: 1000px;
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s;
+        }
+        
+        .toggle-icon.rotate {
+            transform: rotate(180deg);
+        }
+        
+        .delete-btn {
+            background: rgba(230, 57, 70, 0.1);
+            color: var(--danger);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .delete-btn:hover {
+            background: rgba(230, 57, 70, 0.2);
+        }
+        
+        .calculation-row {
+            background: #f0f7ff;
+        }
+        
+        .calculation-cell {
+            padding: 20px !important;
+            background: #f0f7ff;
+            border-top: 1px dashed #c0d8f0;
+            border-bottom: 2px solid #c0d8f0;
+        }
+        
+        .calculation-card {
+            background: linear-gradient(135deg, #e3f2fd, #d0e6ff);
+            border-left: 5px solid var(--calculation);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .calculation-card h4 {
+            color: var(--calculation);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.3rem;
+        }
+        
+        .calculation-card .date-range {
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .calculation-card .calculation-item {
+            padding: 12px 0;
+            border-bottom: 1px dashed #c0d8f0;
+        }
+        
+        .calculation-card .item-label {
+            font-weight: 600;
+            color: #3a506b;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .calculation-card .item-value {
+            font-weight: 700;
+            color: var(--calculation);
+            margin-left: 5px;
+        }
+        
+        .calculation-card .formula {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 8px;
+            font-size: 0.95rem;
+            color: #5c6bc0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .calculation-card .formula .result {
+            font-weight: 700;
+            color: var(--calculation);
+            margin-left: 5px;
+        }
+        
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .search-bar input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+        }
+        
+        .search-bar button {
+            padding: 12px 20px;
+        }
+        
+        .filter-panel {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+        }
+        
+        .filter-item label {
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .filter-select {
+            padding: 10px 15px;
+            border: 1px solid #d1d8e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .filter-select::after {
+            content: "▼";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.7rem;
+            opacity: 0.6;
+        }
+        
+        .filter-reset {
+            background: #e5e7eb;
+            color: #4b5563;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            align-self: flex-end;
+            margin-bottom: 8px;
+        }
+        
+        .filter-reset:hover {
+            background: #d1d5db;
+        }
+        
+        .dropdown-content {
+            position: absolute;
+            background: white;
+            border: 1px solid #d1d8e0;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+            min-width: 200px;
+            margin-top: 5px;
+        }
+        
+        .dropdown-content div {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .dropdown-content div:hover {
+            background: #f3f4f6;
+        }
+        
+        .dropdown-container {
+            position: relative;
+        }
+        
+        .th-filter {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .th-filter i {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .th-filter i:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        /* 新增样式：表格滚动容器 */
+        .scrollable-table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 15px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eaeff5;
+        }
+
+        .scrollable-table-container table {
+            margin: 0;
+            box-shadow: none;
+            border-radius: 0;
+        }
+        
+        /* 滚动条样式 */
+        .scrollable-table-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        
+        .scrollable-table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .scrollable-table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .scrollable-table-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
@@ -653,9 +1076,9 @@
                 <div class="header-text">
                     <h1>
                         <i class="fas fa-calculator"></i>
-                        <span>智能借款利息计算系统</span>
+                        <span>借款利息计算系统</span>
                     </h1>
-                    <p class="subtitle">专业级借款管理工具，支持自动计算利息（先息后本），智能分类还款，月利率可调，具备自我校正功能。<span class="feature-highlight">新增超额还款处理</span>功能，解决还款结清后有余款的情况。</p>
+                    <p class="subtitle">专业级借款管理工具，支持<span class="feature-highlight">月日组合利息计算</span>和详细计算过程展示</p>
                 </div>
                 <div class="header-stats">
                     <div class="stat-item">
@@ -674,13 +1097,92 @@
             </div>
         </header>
         
-        <div class="overpayment-info">
-            <h3><i class="fas fa-info-circle"></i> 超额还款处理说明</h3>
-            <p>当还款金额超过应还总额（剩余本金 + 剩余利息）时，系统会自动处理：</p>
-            <p>1. 先支付所有<span class="overpayment-highlight">剩余利息</span></p>
-            <p>2. 再偿还所有<span class="overpayment-highlight">剩余本金</span></p>
-            <p>3. 最后将<span class="overpayment-highlight">超额部分</span>记录为"超额还款"</p>
-            <p>超额还款不会用于抵扣其他借款，仅作为记录，可在还款记录中查看。</p>
+        <!-- 可折叠说明区域 -->
+        <div class="card">
+            <div class="card-header" onclick="toggleCollapse('method-section')">
+                <span><i class="fas fa-calculator"></i> 月日组合利息计算方法</span>
+                <i class="fas fa-chevron-down toggle-icon" id="method-icon"></i>
+            </div>
+            <div class="collapsible-content" id="method-section">
+                <div class="card-body">
+                    <div class="interest-method" style="display: block;">
+                        <ul>
+                            <li><span class="method-step">1. 按月计算</span>：将天数按30天分为完整月份</li>
+                            <li><span class="method-step">2. 按日计算</span>：剩余天数按日利率计算</li>
+                            <li><span class="method-step">3. 公式</span>：利息 = (完整月份数 × 月利率 × 本金) + (剩余天数 × 日利率 × 本金)</li>
+                            <li><span class="method-step">4. 日利率</span>：日利率 = 月利率 ÷ 30</li>
+                            <li><span class="method-step">5. 示例</span>：本金10000元，月利率1.3%，计息天数45天<br>
+                                完整月份数 = 45 ÷ 30 = 1个月 (30天)<br>
+                                剩余天数 = 15天<br>
+                                月利息 = 10000 × 1.3% = 130元<br>
+                                日利息 = 10000 × (1.3% ÷ 30) × 15 = 65元<br>
+                                总利息 = 130 + 65 = 195元
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header" onclick="toggleCollapse('order-section')">
+                <span><i class="fas fa-sort-amount-down"></i> 还款顺序说明</span>
+                <i class="fas fa-chevron-down toggle-icon" id="order-icon"></i>
+            </div>
+            <div class="collapsible-content" id="order-section">
+                <div class="card-body">
+                    <div class="repayment-order" style="display: block;">
+                        <ul>
+                            <li><span class="order-step">1. 先还本金</span>：还款金额优先用于偿还本金</li>
+                            <li><span class="order-step">2. 再付利息</span>：剩余金额用于支付利息（含累计利息）</li>
+                            <li><span class="order-step">3. 利息累计</span>：当还款金额不足以支付利息时，未付利息将累计</li>
+                            <li><span class="order-step">4. 超额处理</span>：当还款金额超过应还总额时，超额部分单独记录</li>
+                            <li><span class="order-step">5. 同一天多笔还款</span>：只有第一笔计算利息，后续还款利息为零，并按时间倒序排列</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header" onclick="toggleCollapse('overpayment-section')">
+                <span><i class="fas fa-info-circle"></i> 超额还款处理说明</span>
+                <i class="fas fa-chevron-down toggle-icon" id="overpayment-icon"></i>
+            </div>
+            <div class="collapsible-content" id="overpayment-section">
+                <div class="card-body">
+                    <div class="overpayment-info" style="display: block;">
+                        <p>当还款金额超过应还总额（剩余本金 + 剩余利息）时，系统会自动处理：</p>
+                        <p>1. 先偿还所有<span class="overpayment-highlight">剩余本金</span></p>
+                        <p>2. 再支付所有<span class="overpayment-highlight">剩余利息</span></p>
+                        <p>3. 最后将<span class="overpayment-highlight">超额部分</span>记录为"超额还款"</p>
+                        <p>4. 同一天多笔还款：只有第一笔计算利息，后续还款利息为零</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 实时利息计算器 -->
+        <div class="interest-calculator">
+            <h3><i class="fas fa-calculator"></i> 实时利息计算器</h3>
+            <p>选择借款单号，系统自动计算截至今日的应付利息：</p>
+            <div class="form-group">
+                <label for="interestLoanId"><i class="fas fa-list"></i> 选择借款单号</label>
+                <select id="interestLoanId">
+                    <option value="">-- 选择借款单号 --</option>
+                </select>
+            </div>
+            <div class="result" id="interestResult" style="display: none;">
+                <div>截至今日：<span id="currentDate"></span></div>
+                <div>剩余本金: <span class="value" id="calcPrincipal">0.00</span> 元</div>
+                <div>上次还款日期: <span id="lastRepaymentDate">无</span></div>
+                <div>计息天数: <span id="interestDays">0</span> 天</div>
+                <div>完整月份数: <span id="fullMonths">0</span> 个月</div>
+                <div>剩余天数: <span id="remainingDays">0</span> 天</div>
+                <div>月利息部分: <span class="month-interest-value" id="monthInterest">0.00</span> 元</div>
+                <div>日利息部分: <span class="day-interest-value" id="dayInterest">0.00</span> 元</div>
+                <div>当期利息: <span class="value" id="calcInterest">0.00</span> 元</div>
+            </div>
         </div>
         
         <div class="quick-actions">
@@ -706,19 +1208,6 @@
             </div>
         </div>
         
-        <div class="instructions">
-            <h3><i class="fas fa-info-circle"></i> 系统使用说明</h3>
-            <ul>
-                <li><strong>添加借款</strong>：填写借款单位、单号、金额和日期后点击"添加借款"</li>
-                <li><strong>添加还款</strong>：选择借款单号，填写还款金额和日期后点击"添加还款"</li>
-                <li><strong>智能利息计算</strong>：系统自动按"先息后本"原则计算利息和本金部分</li>
-                <li><span class="feature-highlight">超额还款处理</span>：当还款金额超过应还总额时，系统自动记录超额部分</li>
-                <li><span class="feature-highlight">剩余利息追踪</span>：未支付利息自动累积至下次还款</li>
-                <li><strong>月利率设置</strong>：可在系统设置中修改月利率（默认1.3%）</li>
-                <li><strong>数据导出</strong>：点击"导出Excel"按钮下载完整数据报表</li>
-            </ul>
-        </div>
-        
         <div class="card">
             <div class="card-header">
                 <span><i class="fas fa-cog"></i> 系统设置</span>
@@ -730,6 +1219,9 @@
                         <input type="number" id="interestRate" step="0.1" min="0" max="20" value="1.3">
                         <button onclick="updateInterestRate()"><i class="fas fa-sync-alt"></i> 更新利率</button>
                     </div>
+                    <p style="margin-top: 10px; color: #6c757d;">
+                        <i class="fas fa-info-circle"></i> 日利率: <span id="dailyRate">0.0433</span>% (按30天计算)
+                    </p>
                 </div>
             </div>
         </div>
@@ -790,17 +1282,17 @@
                 </div>
                 <div id="repayment-details" style="margin-top: 20px; display: none;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <div style="background: #f0f7ff; padding: 15px; border-radius: 10px;">
+                        <div style="background: #e8f5e9; padding: 15px; border-radius: 10px;">
                             <div style="font-weight: 600; color: #3a506b;">剩余本金</div>
-                            <div id="remaining-principal" style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">0.00</div>
+                            <div id="remaining-principal" style="font-size: 1.5rem; font-weight: 700; color: var(--principal);">0.00</div>
                         </div>
-                        <div style="background: #fff8e6; padding: 15px; border-radius: 10px;">
+                        <div style="background: #ffecb3; padding: 15px; border-radius: 10px;">
                             <div style="font-weight: 600; color: #3a506b;">剩余利息</div>
-                            <div id="remaining-interest" style="font-size: 1.5rem; font-weight: 700; color: #b45309;">0.00</div>
+                            <div id="remaining-interest" style="font-size: 1.5rem; font-weight: 700; color: var(--interest);">0.00</div>
                         </div>
                         <div style="background: #f0e6ff; padding: 15px; border-radius: 10px;">
                             <div style="font-weight: 600; color: #3a506b;">应还总额</div>
-                            <div id="total-due" style="font-size: 1.5rem; font-weight: 700; color: #6a0dad;">0.00</div>
+                            <div id="total-due" style="font-size: 1.5rem; font-weight: 700; color: var(--overpayment);">0.00</div>
                         </div>
                     </div>
                 </div>
@@ -827,24 +1319,28 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <table id="loanTable">
-                        <thead>
-                            <tr>
-                                <th>借款单位</th>
-                                <th>单号</th>
-                                <th>借款日期</th>
-                                <th>借款金额</th>
-                                <th>月利率</th>
-                                <th>剩余本金</th>
-                                <th>剩余利息</th>
-                                <th>状态</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="loanTableBody">
-                            <!-- 借款记录将通过JS动态生成 -->
-                        </tbody>
-                    </table>
+                    <!-- 添加滚动容器 -->
+                    <div class="scrollable-table-container">
+                        <table id="loanTable">
+                            <thead>
+                                <tr>
+                                    <th>借款单位</th>
+                                    <th>单号</th>
+                                    <th>借款日期</th>
+                                    <th>借款金额</th>
+                                    <th>月利率</th>
+                                    <th>剩余本金</th>
+                                    <th>剩余利息</th>
+                                    <th>超额还款</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loanTableBody">
+                                <!-- 借款记录将通过JS动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -855,24 +1351,74 @@
                     <span><i class="fas fa-receipt"></i> 还款记录</span>
                 </div>
                 <div class="card-body">
-                    <table id="repaymentTable">
-                        <thead>
-                            <tr>
-                                <th>借款单号</th>
-                                <th>借款单位</th>
-                                <th>还款日期</th>
-                                <th>还款金额</th>
-                                <th>利息部分</th>
-                                <th>本金部分</th>
-                                <th>剩余利息</th>
-                                <th>超额还款</th>
-                                <th>还款后本金</th>
-                            </tr>
-                        </thead>
-                        <tbody id="repaymentTableBody">
-                            <!-- 还款记录将通过JS动态生成 -->
-                        </tbody>
-                    </table>
+                    <div class="search-bar">
+                        <input type="text" id="repaymentSearch" placeholder="搜索借款单位或单号" style="padding: 12px 15px;">
+                        <button onclick="filterRepayments()"><i class="fas fa-search"></i> 搜索还款记录</button>
+                    </div>
+                    
+                    <div class="filter-panel">
+                        <div class="filter-item">
+                            <label for="filterBorrower">借款单位</label>
+                            <div class="dropdown-container">
+                                <div class="filter-select" onclick="toggleDropdown('borrowerDropdown')">
+                                    <span id="selectedBorrower">全部借款单位</span>
+                                </div>
+                                <div id="borrowerDropdown" class="dropdown-content"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="filter-item">
+                            <label for="filterLoanId">借款单号</label>
+                            <div class="dropdown-container">
+                                <div class="filter-select" onclick="toggleDropdown('loanIdDropdown')">
+                                    <span id="selectedLoanId">全部借款单号</span>
+                                </div>
+                                <div id="loanIdDropdown" class="dropdown-content"></div>
+                            </div>
+                        </div>
+                        
+                        <button class="filter-reset" onclick="resetFilters()">
+                            <i class="fas fa-sync-alt"></i> 重置筛选
+                        </button>
+                        
+                        <!-- 新增：全部还款按钮 -->
+                        <button class="filter-reset" onclick="showAllRepayments()">
+                            <i class="fas fa-list"></i> 全部还款
+                        </button>
+                    </div>
+                    
+                    <!-- 添加滚动容器 -->
+                    <div class="scrollable-table-container">
+                        <table id="repaymentTable">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <div class="th-filter">
+                                            <span>借款单号</span>
+                                            <i class="fas fa-caret-down" onclick="toggleDropdown('loanIdDropdown')"></i>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        <div class="th-filter">
+                                            <span>借款单位</span>
+                                            <i class="fas fa-caret-down" onclick="toggleDropdown('borrowerDropdown')"></i>
+                                        </div>
+                                    </th>
+                                    <th>还款日期</th>
+                                    <th>还款金额</th>
+                                    <th>本金部分</th>
+                                    <th>利息部分</th>
+                                    <th>剩余利息</th>
+                                    <th>还款后本金</th>
+                                    <th>超额还款</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repaymentTableBody">
+                                <!-- 还款记录将通过JS动态生成 -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -910,20 +1456,23 @@
                         <h3 style="margin-bottom: 20px; color: #3a506b; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-history"></i> 最近还款记录
                         </h3>
-                        <table id="recentRepayments">
-                            <thead>
-                                <tr>
-                                    <th>借款单号</th>
-                                    <th>借款单位</th>
-                                    <th>还款日期</th>
-                                    <th>还款金额</th>
-                                    <th>超额部分</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentRepaymentsBody">
-                                <!-- 最近还款记录将通过JS动态生成 -->
-                            </tbody>
-                        </table>
+                        <!-- 添加滚动容器 -->
+                        <div class="scrollable-table-container">
+                            <table id="recentRepayments">
+                                <thead>
+                                    <tr>
+                                        <th>借款单号</th>
+                                        <th>借款单位</th>
+                                        <th>还款日期</th>
+                                        <th>还款金额</th>
+                                        <th>超额部分</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentRepaymentsBody">
+                                    <!-- 最近还款记录将通过JS动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -933,6 +1482,11 @@
             <button class="btn-danger" onclick="clearAllData()">
                 <i class="fas fa-trash-alt"></i>
                 <span>清空所有数据</span>
+            </button>
+            <!-- 新增：刷新页面按钮 -->
+            <button class="btn-secondary" onclick="location.reload()">
+                <i class="fas fa-sync-alt"></i>
+                <span>刷新页面</span>
             </button>
             <button class="btn-download" onclick="exportToExcel()">
                 <i class="fas fa-file-excel"></i>
@@ -954,8 +1508,37 @@
         // 初始化数据
         let loans = JSON.parse(localStorage.getItem('loans')) || [];
         let repayments = JSON.parse(localStorage.getItem('repayments')) || [];
-        let interestRate = localStorage.getItem('interestRate') || 1.3;
+        let interestRate = parseFloat(localStorage.getItem('interestRate')) || 1.3;
         let lastLoanId = localStorage.getItem('lastLoanId') || '';
+        let lastBorrower = localStorage.getItem('lastBorrower') || '';
+        let expandedCalculations = {};
+        let sortColumn = 'date';
+        let sortDirection = 'desc';
+        let repaymentSearchTerm = '';
+        let selectedBorrower = '';
+        let selectedLoanId = '';
+        let lastRepaymentLoanId = localStorage.getItem('lastRepaymentLoanId') || '';
+        let showAllRepaymentsFlag = false; // 控制是否显示所有还款记录
+        
+        // 为旧的还款记录添加时间戳（兼容旧数据）
+        repayments = repayments.map(repayment => {
+            if (repayment.timestamp === undefined) {
+                // 如果id是数字，则使用id（因为id是Date.now()生成的）
+                if (typeof repayment.id === 'number') {
+                    repayment.timestamp = repayment.id;
+                } else {
+                    // 否则使用还款日期的0点时间戳
+                    repayment.timestamp = new Date(repayment.date).getTime();
+                }
+            }
+            return repayment;
+        });
+        
+        // 计算并显示日利率
+        function updateDailyRate() {
+            const dailyRate = (interestRate / 30).toFixed(4);
+            document.getElementById('dailyRate').textContent = dailyRate;
+        }
         
         // 显示通知
         function showNotification(message, type = 'success') {
@@ -983,6 +1566,8 @@
             } else if (tab === 'repayment') {
                 document.getElementById('repayment-tab').classList.add('active');
                 document.querySelectorAll('.tab')[1].classList.add('active');
+                // 更新筛选下拉框
+                updateFilterDropdowns();
             } else {
                 document.getElementById('summary-tab').classList.add('active');
                 document.querySelectorAll('.tab')[2].classList.add('active');
@@ -1007,7 +1592,7 @@
         
         // 显示帮助
         function showHelp() {
-            alert("使用帮助：\n\n1. 添加借款：填写借款信息后点击添加借款\n2. 添加还款：选择借款单号，填写还款信息\n3. 系统自动计算利息并分类\n4. 当还款金额超过应还总额时，超额部分会单独记录\n5. 使用顶部标签页切换不同视图\n6. 导出数据：点击导出Excel按钮下载完整数据");
+            alert("使用帮助：\n\n1. 添加借款：填写借款信息后点击添加借款\n2. 添加还款：选择借款单号，填写还款信息\n3. 系统自动按先本后息顺序计算\n4. 月利率统一按30天计算\n5. 当还款金额超过应还总额时，超额部分会单独记录\n6. 使用顶部标签页切换不同视图\n7. 导出数据：点击导出Excel按钮下载完整数据\n\n重要规则：\n- 同一天多笔还款：只有第一笔计算利息，后续还款利息为零\n- 还款记录按时间倒序排列（后发生的显示在上面）");
         }
         
         // 生成借款单号
@@ -1020,6 +1605,15 @@
             document.getElementById('loanId').value = newId;
         }
         
+        // 切换折叠内容
+        function toggleCollapse(sectionId) {
+            const section = document.getElementById(sectionId);
+            const icon = document.getElementById(`${sectionId.split('-')[0]}-icon`);
+            
+            section.classList.toggle('show');
+            icon.classList.toggle('rotate');
+        }
+        
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('interestRate').value = interestRate;
@@ -1027,22 +1621,255 @@
             document.getElementById('loanDate').value = today;
             document.getElementById('repaymentDate').value = today;
             
+            // 更新日利率显示
+            updateDailyRate();
+            
             // 如果上次使用过借款单号，则预填充
             if (lastLoanId) {
                 document.getElementById('loanId').value = lastLoanId;
             }
             
-            updateLoanDropdown();
+            // 如果上次使用过借款单位，则预填充
+            if (lastBorrower) {
+                document.getElementById('borrower').value = lastBorrower;
+            }
+            
+            updateLoanDropdowns();
             renderLoanTable();
-            renderRepaymentTable();
             updateSummary();
             updateHeaderStats();
             
-            // 监听借款单号变化
+            // 监听借款单号变化（还款区域）
             document.getElementById('repaymentLoanId').addEventListener('change', function() {
                 updateRepaymentDetails();
             });
+            
+            // 监听利率变化
+            document.getElementById('interestRate').addEventListener('input', function() {
+                updateDailyRate();
+                calculateCurrentInterest();
+            });
+            
+            // 监听利息计算器的借款单号变化
+            document.getElementById('interestLoanId').addEventListener('change', function() {
+                calculateCurrentInterest();
+            });
+            
+            // 显示当前日期
+            document.getElementById('currentDate').textContent = formatDate(new Date());
+            
+            // 展开第一个说明区域
+            setTimeout(() => {
+                toggleCollapse('method-section');
+            }, 500);
+            
+            // 初始化后渲染还款记录
+            setTimeout(() => {
+                renderRepaymentTable();
+            }, 100);
+            
+            // 点击页面其他区域关闭下拉菜单
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dropdown-container')) {
+                    document.querySelectorAll('.dropdown-content').forEach(d => {
+                        d.style.display = 'none';
+                    });
+                }
+            });
         });
+        
+        // 更新所有借款下拉框
+        function updateLoanDropdowns() {
+            // 还款下拉框（现在包括已结清的借款）
+            const repaymentSelect = document.getElementById('repaymentLoanId');
+            repaymentSelect.innerHTML = '<option value="">-- 选择借款单号 --</option>';
+            
+            // 利息计算器下拉框
+            const interestSelect = document.getElementById('interestLoanId');
+            interestSelect.innerHTML = '<option value="">-- 选择借款单号 --</option>';
+            
+            loans.forEach(loan => {
+                const statusText = loan.status === 'active' ? '(未结清)' : '(已结清)';
+                
+                const option = document.createElement('option');
+                option.value = loan.loanId;
+                option.textContent = `${loan.loanId} - ${loan.borrower} ${statusText}`;
+                repaymentSelect.appendChild(option);
+                
+                const interestOption = document.createElement('option');
+                interestOption.value = loan.loanId;
+                interestOption.textContent = `${loan.loanId} - ${loan.borrower}`;
+                interestSelect.appendChild(interestOption);
+            });
+        }
+        
+        // 更新筛选下拉框
+        function updateFilterDropdowns() {
+            // 借款单位下拉框
+            const borrowerDropdown = document.getElementById('borrowerDropdown');
+            borrowerDropdown.innerHTML = '';
+            
+            // 添加"全部"选项
+            const allBorrowerOption = document.createElement('div');
+            allBorrowerOption.textContent = '全部借款单位';
+            allBorrowerOption.onclick = function() {
+                selectedBorrower = '';
+                document.getElementById('selectedBorrower').textContent = '全部借款单位';
+                borrowerDropdown.style.display = 'none';
+                showAllRepaymentsFlag = false; // 重置标志
+                renderRepaymentTable();
+            };
+            borrowerDropdown.appendChild(allBorrowerOption);
+            
+            // 获取所有借款单位（去重）
+            const borrowers = [...new Set(loans.map(loan => loan.borrower))];
+            borrowers.forEach(borrower => {
+                const option = document.createElement('div');
+                option.textContent = borrower;
+                option.onclick = function() {
+                    selectedBorrower = borrower;
+                    document.getElementById('selectedBorrower').textContent = borrower;
+                    borrowerDropdown.style.display = 'none';
+                    showAllRepaymentsFlag = false; // 重置标志
+                    renderRepaymentTable();
+                };
+                borrowerDropdown.appendChild(option);
+            });
+            
+            // 借款单号下拉框
+            const loanIdDropdown = document.getElementById('loanIdDropdown');
+            loanIdDropdown.innerHTML = '';
+            
+            // 添加"全部"选项
+            const allLoanIdOption = document.createElement('div');
+            allLoanIdOption.textContent = '全部借款单号';
+            allLoanIdOption.onclick = function() {
+                selectedLoanId = '';
+                document.getElementById('selectedLoanId').textContent = '全部借款单号';
+                loanIdDropdown.style.display = 'none';
+                showAllRepaymentsFlag = false; // 重置标志
+                renderRepaymentTable();
+            };
+            loanIdDropdown.appendChild(allLoanIdOption);
+            
+            // 获取所有借款单号（去重）
+            const loanIds = [...new Set(loans.map(loan => loan.loanId))];
+            loanIds.forEach(loanId => {
+                const option = document.createElement('div');
+                option.value = loanId;
+                option.textContent = loanId;
+                option.onclick = function() {
+                    selectedLoanId = loanId;
+                    document.getElementById('selectedLoanId').textContent = loanId;
+                    loanIdDropdown.style.display = 'none';
+                    showAllRepaymentsFlag = false; // 重置标志
+                    renderRepaymentTable();
+                };
+                loanIdDropdown.appendChild(option);
+            });
+        }
+        
+        // 切换下拉框显示
+        function toggleDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                // 隐藏所有其他下拉框
+                document.querySelectorAll('.dropdown-content').forEach(d => {
+                    d.style.display = 'none';
+                });
+                dropdown.style.display = 'block';
+            }
+        }
+        
+        // 重置筛选
+        function resetFilters() {
+            selectedBorrower = '';
+            selectedLoanId = '';
+            repaymentSearchTerm = '';
+            document.getElementById('repaymentSearch').value = '';
+            document.getElementById('selectedBorrower').textContent = '全部借款单位';
+            document.getElementById('selectedLoanId').textContent = '全部借款单号';
+            showAllRepaymentsFlag = false; // 重置标志
+            
+            // 显示最近还款单号的记录
+            renderRepaymentTable();
+        }
+        
+        // 显示所有还款记录
+        function showAllRepayments() {
+            selectedBorrower = '';
+            selectedLoanId = '';
+            repaymentSearchTerm = '';
+            document.getElementById('repaymentSearch').value = '';
+            document.getElementById('selectedBorrower').textContent = '全部借款单位';
+            document.getElementById('selectedLoanId').textContent = '全部借款单号';
+            
+            // 设置标志，显示所有还款记录
+            showAllRepaymentsFlag = true;
+            
+            // 显示所有还款记录
+            renderRepaymentTable();
+        }
+        
+        // 计算并显示当期利息（月日组合方式）
+        function calculateCurrentInterest() {
+            const loanId = document.getElementById('interestLoanId').value;
+            const resultContainer = document.getElementById('interestResult');
+            
+            if (!loanId) {
+                resultContainer.style.display = 'none';
+                return;
+            }
+            
+            const loan = loans.find(loan => loan.loanId === loanId);
+            if (!loan) {
+                resultContainer.style.display = 'none';
+                return;
+            }
+            
+            resultContainer.style.display = 'block';
+            document.getElementById('calcPrincipal').textContent = loan.remaining.toFixed(2);
+            
+            // 获取该借款的最后还款记录
+            const loanRepayments = repayments.filter(r => r.loanId === loanId);
+            const lastRepayment = loanRepayments.length > 0 
+                ? loanRepayments.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+                : null;
+            
+            // 计算起始日期
+            const startDate = lastRepayment ? new Date(lastRepayment.date) : new Date(loan.date);
+            const currentDate = new Date();
+            
+            // 计算天数差
+            const timeDiff = Math.abs(currentDate - startDate);
+            const days = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+            
+            // 计算完整月份数和剩余天数
+            const fullMonths = Math.floor(days / 30);
+            const remainingDays = days % 30;
+            
+            // 计算月利息部分（使用还款前的本金）
+            const monthInterest = loan.remaining * (interestRate / 100) * fullMonths;
+            
+            // 计算日利息部分（使用还款前的本金）
+            const dayInterest = loan.remaining * (interestRate / 100) * (remainingDays / 30);
+            
+            // 当期利息
+            const currentInterest = monthInterest + dayInterest;
+            
+            // 更新显示
+            document.getElementById('lastRepaymentDate').textContent = lastRepayment 
+                ? formatDate(lastRepayment.date) 
+                : formatDate(loan.date);
+            document.getElementById('interestDays').textContent = days;
+            document.getElementById('fullMonths').textContent = fullMonths;
+            document.getElementById('remainingDays').textContent = remainingDays;
+            document.getElementById('monthInterest').textContent = monthInterest.toFixed(2);
+            document.getElementById('dayInterest').textContent = dayInterest.toFixed(2);
+            document.getElementById('calcInterest').textContent = currentInterest.toFixed(2);
+        }
         
         // 更新还款详情
         function updateRepaymentDetails() {
@@ -1079,7 +1906,9 @@
             interestRate = newRate;
             localStorage.setItem('interestRate', interestRate);
             showNotification(`利率已更新为 ${interestRate}%`);
+            updateDailyRate();
             renderLoanTable();
+            calculateCurrentInterest(); // 重新计算利息
         }
         
         // 添加借款
@@ -1114,23 +1943,240 @@
             
             loans.push(newLoan);
             saveData();
-            updateLoanDropdown();
+            updateLoanDropdowns();
             renderLoanTable();
             updateSummary();
             updateHeaderStats();
             
-            // 保存当前借款单号供下次使用
+            // 保存当前借款单号和借款单位供下次使用
             lastLoanId = loanId;
+            lastBorrower = borrower;
             localStorage.setItem('lastLoanId', lastLoanId);
+            localStorage.setItem('lastBorrower', lastBorrower);
             
-            // 只清空借款单位和借款金额
-            document.getElementById('borrower').value = '';
+            // 只清空借款金额
             document.getElementById('loanAmount').value = '';
             
             showNotification("借款添加成功！");
         }
         
-        // 添加还款
+        // 删除借款记录
+        function deleteLoan(loanId) {
+            if (confirm("确定要删除此借款记录吗？相关的还款记录也会被删除！")) {
+                // 删除借款记录
+                loans = loans.filter(loan => loan.loanId !== loanId);
+                
+                // 删除相关还款记录
+                repayments = repayments.filter(repayment => repayment.loanId !== loanId);
+                
+                saveData();
+                updateLoanDropdowns();
+                renderLoanTable();
+                renderRepaymentTable();
+                updateSummary();
+                updateHeaderStats();
+                
+                showNotification("借款记录及相关还款记录已删除！");
+            }
+        }
+        
+        // 删除还款记录 - 优化后的版本
+        function deleteRepayment(repaymentId) {
+            if (confirm("确定要删除此还款记录吗？")) {
+                // 找到要删除的还款记录
+                const repaymentIndex = repayments.findIndex(r => r.id === repaymentId);
+                if (repaymentIndex === -1) return;
+                
+                const repayment = repayments[repaymentIndex];
+                const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                
+                if (loan) {
+                    // 获取该借款的所有还款记录（按日期排序）
+                    const loanRepayments = repayments.filter(r => r.loanId === repayment.loanId);
+                    loanRepayments.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    
+                    // 找到被删除还款记录在还款记录数组中的索引
+                    const deletedIndex = loanRepayments.findIndex(r => r.id === repaymentId);
+                    
+                    // 找到被删除还款记录的前一个还款记录
+                    const prevRepayment = deletedIndex > 0 ? loanRepayments[deletedIndex - 1] : null;
+                    
+                    // 如果有前一个还款记录，则恢复借款状态到前一个还款记录后的状态
+                    if (prevRepayment) {
+                        loan.remaining = prevRepayment.remaining;
+                        loan.accruedInterest = prevRepayment.accruedInterest;
+                        loan.overpayment = loan.overpayment - repayment.overpayment;
+                    } else {
+                        // 如果没有前一个还款记录，则恢复到借款初始状态
+                        loan.remaining = loan.amount;
+                        loan.accruedInterest = 0;
+                        loan.overpayment = loan.overpayment - repayment.overpayment;
+                    }
+                    
+                    // 更新借款状态
+                    loan.status = (loan.remaining <= 0 && loan.accruedInterest <= 0) ? 'closed' : 'active';
+                }
+                
+                // 删除还款记录
+                repayments.splice(repaymentIndex, 1);
+                
+                saveData();
+                renderLoanTable();
+                renderRepaymentTable();
+                updateSummary();
+                updateHeaderStats();
+                
+                // 重新计算该借款单号在该还款时间之后的所有还款记录
+                recalculateLoanAfterRepayment(repayment.loanId, repayment.date);
+                
+                showNotification("还款记录已删除！后续还款已重新计算");
+            }
+        }
+        
+        // 重新计算借款在某个还款日期之后的所有还款记录
+        function recalculateLoanAfterRepayment(loanId, repaymentDate) {
+            const loan = loans.find(l => l.loanId === loanId);
+            if (!loan) return;
+            
+            // 获取该借款的所有还款记录（按日期排序）
+            let loanRepayments = repayments.filter(r => r.loanId === loanId);
+            loanRepayments.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // 找到删除的还款记录的位置
+            const deletedIndex = loanRepayments.findIndex(r => new Date(r.date) >= new Date(repaymentDate));
+            if (deletedIndex === -1) return;
+            
+            // 获取前一笔还款记录（如果有）
+            let prevRepayment = null;
+            if (deletedIndex > 0) {
+                prevRepayment = loanRepayments[deletedIndex - 1];
+            }
+            
+            // 重新计算剩余本金和利息
+            let currentPrincipal = prevRepayment ? prevRepayment.remaining : loan.amount;
+            let currentAccruedInterest = prevRepayment ? prevRepayment.accruedInterest : 0;
+            let currentOverpayment = prevRepayment ? prevRepayment.overpayment : loan.overpayment;
+            
+            // 重新计算后续还款记录
+            for (let i = deletedIndex; i < loanRepayments.length; i++) {
+                const repayment = loanRepayments[i];
+                const lastDate = prevRepayment ? new Date(prevRepayment.date) : new Date(loan.date);
+                const currentDate = new Date(repayment.date);
+                
+                // 获取该借款同一天的还款记录（包括当前还款）
+                const sameDayRepayments = loanRepayments.filter(r => r.date === repayment.date);
+                // 按时间戳升序排列（最早的排前面）
+                sameDayRepayments.sort((a, b) => a.timestamp - b.timestamp);
+                
+                // 当前还款在当天的位置
+                const indexInSameDay = sameDayRepayments.findIndex(r => r.id === repayment.id);
+                
+                let days = 0;
+                let fullMonths = 0;
+                let remainingDays = 0;
+                let monthInterest = 0;
+                let dayInterest = 0;
+                let currentInterest = 0;
+                
+                // 如果是当天的第一笔还款，才计算利息
+                if (indexInSameDay === 0) {
+                    // 计算天数差
+                    const timeDiff = Math.abs(currentDate - lastDate);
+                    days = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                    
+                    // 计算完整月份数和剩余天数
+                    fullMonths = Math.floor(days / 30);
+                    remainingDays = days % 30;
+                    
+                    // 计算月利息部分（使用还款前的本金）
+                    monthInterest = currentPrincipal * (interestRate / 100) * fullMonths;
+                    
+                    // 计算日利息部分（使用还款前的本金）
+                    dayInterest = currentPrincipal * (interestRate / 100) * (remainingDays / 30);
+                    
+                    // 当期利息
+                    currentInterest = monthInterest + dayInterest;
+                }
+                
+                // 计算总应还利息（包括之前的累计利息和当期利息）
+                const totalInterestDue = currentAccruedInterest + currentInterest;
+                
+                // 计算总应还金额（本金+利息）
+                const totalDue = currentPrincipal + totalInterestDue;
+                
+                let principalPart, interestPart, overpayment = 0;
+                
+                // 创建计算详情
+                const calculationDetails = {
+                    startDate: formatDate(lastDate),
+                    endDate: formatDate(currentDate),
+                    days: days,
+                    fullMonths: fullMonths,
+                    remainingDays: remainingDays,
+                    monthInterest: monthInterest.toFixed(2),
+                    dayInterest: dayInterest.toFixed(2),
+                    currentInterest: currentInterest.toFixed(2),
+                    totalInterestDue: totalInterestDue.toFixed(2),
+                    totalDue: totalDue.toFixed(2),
+                    overpayment: 0,
+                    loanRemaining: currentPrincipal.toFixed(2),
+                    accruedInterest: currentAccruedInterest.toFixed(2),
+                    interestRate: interestRate
+                };
+                
+                // 处理还款
+                if (repayment.amount > totalDue) {
+                    // 还款金额超过应还总额
+                    principalPart = currentPrincipal;
+                    interestPart = totalInterestDue;
+                    overpayment = repayment.amount - totalDue;
+                    
+                    // 更新当前状态
+                    currentPrincipal = 0;
+                    currentAccruedInterest = 0;
+                    currentOverpayment += overpayment;
+                    
+                    calculationDetails.overpayment = overpayment.toFixed(2);
+                } else {
+                    // 正常还款（先本后息）
+                    principalPart = Math.min(repayment.amount, currentPrincipal);
+                    
+                    // 剩余金额还利息
+                    const remainingAfterPrincipal = repayment.amount - principalPart;
+                    interestPart = Math.min(remainingAfterPrincipal, totalInterestDue);
+                    
+                    // 更新当前状态
+                    currentPrincipal -= principalPart;
+                    currentAccruedInterest = totalInterestDue - interestPart;
+                }
+                
+                // 更新还款记录
+                repayment.principal = principalPart;
+                repayment.interest = interestPart;
+                repayment.overpayment = overpayment;
+                repayment.remaining = currentPrincipal;
+                repayment.accruedInterest = currentAccruedInterest;
+                repayment.calculationDetails = calculationDetails;
+                
+                // 设置前一笔还款为当前还款
+                prevRepayment = repayment;
+            }
+            
+            // 更新借款状态
+            loan.remaining = currentPrincipal;
+            loan.accruedInterest = currentAccruedInterest;
+            loan.overpayment = currentOverpayment;
+            loan.status = (currentPrincipal <= 0 && currentAccruedInterest <= 0) ? 'closed' : 'active';
+            
+            // 保存数据
+            saveData();
+            renderLoanTable();
+            renderRepaymentTable();
+            updateSummary();
+            updateHeaderStats();
+        }
+
+        // 添加还款（先本后息逻辑） - 优化后的版本（支持同一天多笔还款）
         function addRepayment() {
             const loanId = document.getElementById('repaymentLoanId').value;
             const amount = parseFloat(document.getElementById('repaymentAmount').value);
@@ -1147,39 +2193,97 @@
                 return;
             }
             
-            if (loan.status === 'closed') {
-                showNotification("该借款已结清，无法添加还款", "error");
-                return;
+            // 获取该借款的所有还款记录
+            const loanRepayments = repayments.filter(r => r.loanId === loanId);
+            
+            // 检查新还款日期是否早于现有还款记录
+            const newDate = new Date(date);
+            let needRecalculate = false;
+            let insertIndex = -1;
+            
+            // 查找插入位置
+            for (let i = 0; i < loanRepayments.length; i++) {
+                if (newDate < new Date(loanRepayments[i].date)) {
+                    needRecalculate = true;
+                    insertIndex = i;
+                    break;
+                }
             }
             
-            // 计算利息部分
-            const lastRepayment = [...repayments]
-                .filter(r => r.loanId === loanId)
-                .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+            // 计算利息部分（月日组合方式）
+            // 获取离新还款记录时间最近的还款记录（前一个）
+            const prevRepayments = loanRepayments.filter(r => new Date(r.date) < newDate);
+            prevRepayments.sort((a, b) => new Date(b.date) - new Date(a.date));
+            const lastRepayment = prevRepayments.length > 0 ? prevRepayments[0] : null;
             
             const lastDate = lastRepayment ? new Date(lastRepayment.date) : new Date(loan.date);
             const currentDate = new Date(date);
             
-            // 计算天数差
-            const timeDiff = Math.abs(currentDate - lastDate);
-            const days = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+            // 获取该借款同一天的还款记录（不包括当前正在添加的这一笔）
+            const sameDayRepayments = loanRepayments.filter(r => r.date === date);
             
-            // 计算当期利息 (月利率/30 * 天数)
-            const currentInterest = loan.remaining * (interestRate / 100) * (days / 30);
+            // 将同一天的还款记录按时间戳升序排列（最早的排前面）
+            sameDayRepayments.sort((a, b) => a.timestamp - b.timestamp);
             
-            // 先计算应还的总利息（包括之前的未付利息）
+            // 当前还款是当天的第几笔（从1开始计数）
+            const repaymentOrderInDay = sameDayRepayments.length + 1;  // 因为当前还款还没加入，所以+1
+            
+            let days = 0;
+            let fullMonths = 0;
+            let remainingDays = 0;
+            let monthInterest = 0;
+            let dayInterest = 0;
+            let currentInterest = 0;
+            
+            // 如果当前还款是当天的第一笔，则计算利息
+            if (repaymentOrderInDay === 1) {
+                // 计算天数差
+                const timeDiff = Math.abs(currentDate - lastDate);
+                days = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                
+                // 计算完整月份数和剩余天数
+                fullMonths = Math.floor(days / 30);
+                remainingDays = days % 30;
+                
+                // 计算月利息部分（使用还款前的本金）
+                monthInterest = loan.remaining * (interestRate / 100) * fullMonths;
+                
+                // 计算日利息部分（使用还款前的本金）
+                dayInterest = loan.remaining * (interestRate / 100) * (remainingDays / 30);
+                
+                // 当期利息
+                currentInterest = monthInterest + dayInterest;
+            }
+            
+            // 先计算应还的总利息（包括之前的累计利息和当期利息）
             const totalInterestDue = loan.accruedInterest + currentInterest;
             
             // 计算总应还金额（本金+利息）
             const totalDue = loan.remaining + totalInterestDue;
             
-            let interestPart, principalPart, overpayment = 0;
+            let principalPart, interestPart, overpayment = 0;
+            let calculationDetails = {
+                startDate: formatDate(lastDate),
+                endDate: formatDate(currentDate),
+                days: days,
+                fullMonths: fullMonths,
+                remainingDays: remainingDays,
+                monthInterest: monthInterest.toFixed(2),
+                dayInterest: dayInterest.toFixed(2),
+                currentInterest: currentInterest.toFixed(2),
+                totalInterestDue: totalInterestDue.toFixed(2),
+                totalDue: totalDue.toFixed(2),
+                overpayment: 0,
+                loanRemaining: loan.remaining.toFixed(2),
+                accruedInterest: loan.accruedInterest.toFixed(2),
+                interestRate: interestRate
+            };
             
             // 处理超额还款的情况
             if (amount > totalDue) {
                 // 还款金额超过应还总额
-                interestPart = totalInterestDue;
                 principalPart = loan.remaining;
+                interestPart = totalInterestDue;
                 overpayment = amount - totalDue;
                 
                 // 更新借款状态
@@ -1188,14 +2292,17 @@
                 loan.overpayment += overpayment;
                 loan.status = 'closed';
                 
+                calculationDetails.overpayment = overpayment.toFixed(2);
+                
                 showNotification(`借款已结清，超额还款金额：${overpayment.toFixed(2)}元`);
             } else {
-                // 正常还款
-                // 计算利息部分（优先还之前的未付利息）
-                interestPart = Math.min(amount, totalInterestDue);
+                // 正常还款（先本后息）
+                // 1. 先还本金
+                principalPart = Math.min(amount, loan.remaining);
                 
-                // 计算本金部分
-                principalPart = Math.min(amount - interestPart, loan.remaining);
+                // 2. 剩余金额还利息
+                const remainingAfterPrincipal = amount - principalPart;
+                interestPart = Math.min(remainingAfterPrincipal, totalInterestDue);
                 
                 // 更新剩余本金
                 loan.remaining -= principalPart;
@@ -1207,26 +2314,39 @@
                 loan.status = (loan.remaining <= 0 && loan.accruedInterest <= 0) ? 'closed' : 'active';
             }
             
-            // 创建还款记录
+            // 创建还款记录（添加时间戳）
             const newRepayment = {
                 id: Date.now(),
                 loanId,
                 date,
+                timestamp: new Date().getTime(),   // 添加时间戳
                 amount,
-                interest: interestPart,
                 principal: principalPart,
+                interest: interestPart,
                 accruedInterest: loan.accruedInterest,
                 overpayment: overpayment,
-                remaining: loan.remaining
+                remaining: loan.remaining,
+                calculationDetails: calculationDetails
             };
             
-            repayments.push(newRepayment);
+            // 插入还款记录
+            if (insertIndex !== -1) {
+                repayments.splice(insertIndex, 0, newRepayment);
+            } else {
+                repayments.push(newRepayment);
+            }
+            
             saveData();
             renderLoanTable();
             renderRepaymentTable();
             updateSummary();
-            updateLoanDropdown();
+            updateLoanDropdowns();
             updateHeaderStats();
+            
+            // 如果需要重新计算后续还款
+            if (needRecalculate) {
+                recalculateLoanAfterRepayment(loanId, date);
+            }
             
             // 清空还款金额，保留其他信息
             document.getElementById('repaymentAmount').value = '';
@@ -1234,23 +2354,17 @@
             // 更新还款详情
             updateRepaymentDetails();
             
+            // 更新利息计算器
+            calculateCurrentInterest();
+            
             // 切换到还款记录标签页
             switchTab('repayment');
             
-            showNotification("还款记录添加成功！");
-        }
-        
-        // 更新借款下拉框
-        function updateLoanDropdown() {
-            const select = document.getElementById('repaymentLoanId');
-            select.innerHTML = '<option value="">-- 选择借款单号 --</option>';
+            // 保存最后还款单号
+            lastRepaymentLoanId = loanId;
+            localStorage.setItem('lastRepaymentLoanId', lastRepaymentLoanId);
             
-            loans.filter(loan => loan.status === 'active').forEach(loan => {
-                const option = document.createElement('option');
-                option.value = loan.loanId;
-                option.textContent = `${loan.loanId} - ${loan.borrower} (本金: ${loan.remaining.toFixed(2)}元, 利息: ${loan.accruedInterest.toFixed(2)}元)`;
-                select.appendChild(option);
-            });
+            showNotification("还款记录添加成功！");
         }
         
         // 渲染借款表格
@@ -1277,16 +2391,20 @@
                     <td>${formatDate(loan.date)}</td>
                     <td>${loan.amount.toFixed(2)}</td>
                     <td>${interestRate}%</td>
-                    <td>${loan.remaining.toFixed(2)}</td>
-                    <td class="accrued-interest">${loan.accruedInterest.toFixed(2)}</td>
+                    <td class="remaining-principal-col">${loan.remaining.toFixed(2)}</td>
+                    <td class="accrued-interest-col">${loan.accruedInterest.toFixed(2)}</td>
+                    <td class="overpayment-col">${loan.overpayment.toFixed(2)}</td>
                     <td>
                         <span class="${loan.status === 'active' ? 'status-active' : 'status-closed'}">
                             ${loan.status === 'active' ? '未结清' : '已结清'}
                         </span>
                     </td>
                     <td>
-                        <button class="btn-repay" onclick="prepareRepayment('${loan.loanId}')" style="padding: 8px 15px;">
+                        <button class="btn-repay" onclick="prepareRepayment('${loan.loanId}')" style="padding: 8px 15px; margin-right: 8px;">
                             <i class="fas fa-file-invoice-dollar"></i> 还款
+                        </button>
+                        <button class="delete-btn" onclick="deleteLoan('${loan.loanId}')">
+                            <i class="fas fa-trash"></i> 删除
                         </button>
                     </td>
                 `;
@@ -1307,19 +2425,95 @@
             renderLoanTable();
         }
         
-        // 渲染还款表格
+        // 过滤还款记录
+        function filterRepayments() {
+            repaymentSearchTerm = document.getElementById('repaymentSearch').value.toLowerCase();
+            showAllRepaymentsFlag = false; // 重置标志
+            renderRepaymentTable();
+        }
+        
+        // 排序还款记录
+        function sortRepayments(column) {
+            // 如果点击的是当前排序的列，则反转排序方向
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                // 否则设置为新的排序列，默认降序
+                sortColumn = column;
+                sortDirection = 'desc';
+            }
+            
+            renderRepaymentTable();
+        }
+        
+        // 切换计算详情显示
+        function toggleCalculation(repaymentId) {
+            if (expandedCalculations[repaymentId]) {
+                delete expandedCalculations[repaymentId];
+            } else {
+                expandedCalculations[repaymentId] = true;
+            }
+            renderRepaymentTable();
+        }
+        
+        // 渲染还款表格（支持同一天多笔还款倒序显示）
         function renderRepaymentTable() {
             const tbody = document.getElementById('repaymentTableBody');
             tbody.innerHTML = '';
             
-            // 按日期降序排序
-            const sortedRepayments = [...repayments].sort((a, b) => 
-                new Date(b.date) - new Date(a.date));
+            // 获取所有还款记录
+            let filteredRepayments = [...repayments];
             
-            sortedRepayments.forEach(repayment => {
+            // 应用搜索过滤
+            if (repaymentSearchTerm) {
+                filteredRepayments = filteredRepayments.filter(repayment => {
+                    const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                    const borrower = loan ? loan.borrower : '未知';
+                    return (
+                        repayment.loanId.toLowerCase().includes(repaymentSearchTerm) ||
+                        borrower.toLowerCase().includes(repaymentSearchTerm)
+                    );
+                });
+            }
+            
+            // 应用筛选条件
+            if (selectedBorrower) {
+                filteredRepayments = filteredRepayments.filter(repayment => {
+                    const loan = loans.find(loan => loan.loanId === repayment.loanId);
+                    return loan && loan.borrower === selectedBorrower;
+                });
+            }
+            
+            if (selectedLoanId) {
+                filteredRepayments = filteredRepayments.filter(repayment => 
+                    repayment.loanId === selectedLoanId
+                );
+            }
+            
+            // 如果没有主动选择，且没有设置显示全部还款标志，则显示最近还款单号的记录
+            if (!showAllRepaymentsFlag && !selectedBorrower && !selectedLoanId && !repaymentSearchTerm && lastRepaymentLoanId) {
+                filteredRepayments = filteredRepayments.filter(repayment => 
+                    repayment.loanId === lastRepaymentLoanId
+                );
+            }
+            
+            // 应用排序：先按日期倒序，同一天内按时间戳倒序（后发生的显示在上面）
+            filteredRepayments.sort((a, b) => {
+                // 先按日期倒序（最近的在前）
+                const dateCompare = new Date(b.date) - new Date(a.date);
+                if (dateCompare !== 0) {
+                    return dateCompare;
+                }
+                // 同一天内按时间戳倒序（后发生的在前）
+                return b.timestamp - a.timestamp;
+            });
+            
+            filteredRepayments.forEach(repayment => {
                 const loan = loans.find(loan => loan.loanId === repayment.loanId);
                 const borrower = loan ? loan.borrower : '未知';
+                const details = repayment.calculationDetails;
                 
+                // 还款记录行
                 const row = document.createElement('tr');
                 
                 row.innerHTML = `
@@ -1327,14 +2521,102 @@
                     <td>${borrower}</td>
                     <td>${formatDate(repayment.date)}</td>
                     <td>${repayment.amount.toFixed(2)}</td>
-                    <td class="interest-col">${repayment.interest.toFixed(2)}</td>
                     <td class="principal-col">${repayment.principal.toFixed(2)}</td>
-                    <td class="accrued-interest">${repayment.accruedInterest.toFixed(2)}</td>
+                    <td class="interest-col">${repayment.interest.toFixed(2)}</td>
+                    <td class="accrued-interest-col">${repayment.accruedInterest.toFixed(2)}</td>
+                    <td class="remaining-principal-col">${repayment.remaining.toFixed(2)}</td>
                     <td class="overpayment-col">${repayment.overpayment > 0 ? repayment.overpayment.toFixed(2) : '-'}</td>
-                    <td>${repayment.remaining.toFixed(2)}</td>
+                    <td>
+                        <button class="expand-btn" onclick="toggleCalculation(${repayment.id})">
+                            <i class="fas fa-calculator"></i>
+                            <span>计算详情</span>
+                        </button>
+                        <button class="delete-btn" onclick="deleteRepayment(${repayment.id})" style="margin-top: 8px;">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </td>
                 `;
                 
                 tbody.appendChild(row);
+                
+                // 计算详情卡片（如果展开）
+                if (expandedCalculations[repayment.id]) {
+                    const calcRow = document.createElement('tr');
+                    calcRow.className = 'calculation-row';
+                    
+                    calcRow.innerHTML = `
+                        <td colspan="10" class="calculation-cell">
+                            <div class="calculation-card">
+                                <h4><i class="fas fa-calculator"></i> 利息计算详情</h4>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">计息期间: ${details.startDate} 至 ${details.endDate}</div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">计息天数: ${details.days} 天</div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">月利息部分: ${details.monthInterest} 元</div>
+                                    <div class="formula">
+                                        公式: 本金 × 月利率 × ${details.fullMonths}个月 = 
+                                        ${details.loanRemaining} × ${details.interestRate}% × ${details.fullMonths} 
+                                        = <span class="result">${details.monthInterest} 元</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">日利息部分: ${details.dayInterest} 元</div>
+                                    <div class="formula">
+                                        公式: 本金 × 月利率 ÷ 30 × ${details.remainingDays}天 = 
+                                        ${details.loanRemaining} × ${details.interestRate}% ÷ 30 × ${details.remainingDays} 
+                                        = <span class="result">${details.dayInterest} 元</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">当期利息: ${details.currentInterest} 元</div>
+                                    <div class="formula">
+                                        公式: 月利息部分 + 日利息部分 = 
+                                        ${details.monthInterest} + ${details.dayInterest} 
+                                        = <span class="result">${details.currentInterest} 元</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">总应还利息: ${details.totalInterestDue} 元</div>
+                                    <div class="formula">
+                                        公式: 前期剩余利息 + 当期利息 = 
+                                        ${details.accruedInterest} + ${details.currentInterest} 
+                                        = <span class="result">${details.totalInterestDue} 元</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calculation-item">
+                                    <div class="item-label">应还总额: ${details.totalDue} 元</div>
+                                    <div class="formula">
+                                        公式: 剩余本金 + 总应还利息 = 
+                                        ${details.loanRemaining} + ${details.totalInterestDue} 
+                                        = <span class="result">${details.totalDue} 元</span>
+                                    </div>
+                                </div>
+                                
+                                ${details.overpayment > 0 ? 
+                                `<div class="calculation-item">
+                                    <div class="item-label">超额还款: ${details.overpayment} 元</div>
+                                    <div class="formula">
+                                        公式: 还款金额 - 应还总额 = 
+                                        ${repayment.amount} - ${details.totalDue} 
+                                        = <span class="result">${details.overpayment} 元</span>
+                                    </div>
+                                </div>` : ''}
+                            </div>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(calcRow);
+                }
             });
             
             // 更新最近还款记录
@@ -1374,7 +2656,6 @@
             const totalLoanAmount = loans.reduce((sum, loan) => sum + loan.amount, 0);
             const totalRemaining = loans.reduce((sum, loan) => sum + loan.remaining, 0);
             const totalAccruedInterest = loans.reduce((sum, loan) => sum + loan.accruedInterest, 0);
-            const totalInterest = repayments.reduce((sum, repayment) => sum + repayment.interest, 0);
             const totalOverpayment = loans.reduce((sum, loan) => sum + loan.overpayment, 0);
             
             document.getElementById('totalLoanAmount').textContent = totalLoanAmount.toFixed(2);
@@ -1428,27 +2709,87 @@
             
             // 添加还款记录表
             const repaymentData = [
-                ['借款单号', '借款单位', '还款日期', '还款金额', '利息部分', '本金部分', '剩余利息', '超额还款', '还款后本金']
+                ['借款单号', '借款单位', '还款日期', '还款金额', '本金部分', '利息部分', '剩余利息', '还款后本金', '超额还款', '计算详情']
             ];
             
             repayments.forEach(repayment => {
                 const loan = loans.find(loan => loan.loanId === repayment.loanId);
                 const borrower = loan ? loan.borrower : '未知';
+                const details = repayment.calculationDetails;
+                
+                // 生成计算说明文本
+                let calculationText = "";
+                if (details) {
+                    calculationText = `计息期间: ${details.startDate} 至 ${details.endDate}\n`;
+                    calculationText += `计息天数: ${details.days} 天\n`;
+                    calculationText += `月利息部分: ${details.monthInterest} 元 (公式: 本金 × 月利率 × ${details.fullMonths}个月 = ${details.loanRemaining} × ${details.interestRate}% × ${details.fullMonths} = ${details.monthInterest})\n`;
+                    calculationText += `日利息部分: ${details.dayInterest} 元 (公式: 本金 × 月利率 ÷ 30 × ${details.remainingDays}天 = ${details.loanRemaining} × ${details.interestRate}% ÷ 30 × ${details.remainingDays} = ${details.dayInterest})\n`;
+                    calculationText += `当期利息: ${details.currentInterest} 元 (公式: 月利息部分 + 日利息部分 = ${details.monthInterest} + ${details.dayInterest} = ${details.currentInterest})\n`;
+                    calculationText += `总应还利息: ${details.totalInterestDue} 元 (公式: 前期剩余利息 + 当期利息 = ${details.accruedInterest} + ${details.currentInterest} = ${details.totalInterestDue})\n`;
+                    calculationText += `应还总额: ${details.totalDue} 元 (公式: 剩余本金 + 总应还利息 = ${details.loanRemaining} + ${details.totalInterestDue} = ${details.totalDue})`;
+                    
+                    if (details.overpayment > 0) {
+                        calculationText += `\n超额还款: ${details.overpayment} 元 (公式: 还款金额 - 应还总额 = ${repayment.amount} - ${details.totalDue} = ${details.overpayment})`;
+                    }
+                }
                 
                 repaymentData.push([
                     repayment.loanId,
                     borrower,
                     formatDate(repayment.date),
                     repayment.amount,
-                    repayment.interest,
                     repayment.principal,
+                    repayment.interest,
                     repayment.accruedInterest,
+                    repayment.remaining,
                     repayment.overpayment,
-                    repayment.remaining
+                    calculationText
                 ]);
             });
             
             const repaymentWs = XLSX.utils.aoa_to_sheet(repaymentData);
+            
+            // 设置列宽以便打印
+            const colWidths = [
+                {wch: 15}, // 借款单号
+                {wch: 20}, // 借款单位
+                {wch: 12}, // 还款日期
+                {wch: 12}, // 还款金额
+                {wch: 12}, // 本金部分
+                {wch: 12}, // 利息部分
+                {wch: 12}, // 剩余利息
+                {wch: 12}, // 还款后本金
+                {wch: 12}, // 超额还款
+                {wch: 80}  // 计算详情（更宽以便显示完整内容）
+            ];
+            
+            repaymentWs['!cols'] = colWidths;
+            
+            // 设置计算详情列为自动换行
+            const range = XLSX.utils.decode_range(repaymentWs['!ref']);
+            for (let i = range.s.r + 1; i <= range.e.r; i++) {
+                const cellAddress = XLSX.utils.encode_cell({r: i, c: 9});
+                if (!repaymentWs[cellAddress]) continue;
+                repaymentWs[cellAddress].s = {
+                    alignment: {
+                        wrapText: true,
+                        vertical: 'top' // 确保内容从顶部开始
+                    }
+                };
+                
+                // 根据内容长度计算行高
+                const content = repaymentData[i][9];
+                const lineCount = (content.match(/\n/g) || []).length + 1;
+                const rowHeight = Math.max(20, lineCount * 20); // 每行20px，最小20px
+                
+                if (!repaymentWs['!rows']) repaymentWs['!rows'] = [];
+                repaymentWs['!rows'][i] = {hpx: rowHeight};
+            }
+            
+            // 设置标题行高
+            if (!repaymentWs['!rows']) repaymentWs['!rows'] = [];
+            repaymentWs['!rows'][0] = {hpx: 30};
+            
             XLSX.utils.book_append_sheet(wb, repaymentWs, "还款记录");
             
             // 导出Excel文件
@@ -1464,12 +2805,13 @@
                 loans = [];
                 repayments = [];
                 saveData();
-                updateLoanDropdown();
+                updateLoanDropdowns();
                 renderLoanTable();
                 renderRepaymentTable();
                 updateSummary();
                 updateHeaderStats();
                 document.getElementById('repayment-details').style.display = 'none';
+                document.getElementById('interestResult').style.display = 'none';
                 showNotification("所有数据已清空");
             }
         }
@@ -1478,11 +2820,12 @@
         function saveData() {
             localStorage.setItem('loans', JSON.stringify(loans));
             localStorage.setItem('repayments', JSON.stringify(repayments));
+            localStorage.setItem('lastRepaymentLoanId', lastRepaymentLoanId);
         }
         
         // 格式化日期
         function formatDate(dateString) {
-            const date = new Date(dateString);
+            const date = dateString instanceof Date ? dateString : new Date(dateString);
             return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
         }
     </script>
